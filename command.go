@@ -136,7 +136,6 @@ type list struct {
 }
 
 // List command
-// TODO: convert path to a slice
 func (c *list) execute(sess *session) *response {
 
 	// Is the user authenticated?
@@ -152,15 +151,12 @@ func (c *list) execute(sess *session) *response {
 		return res
 	}
 
-	// Add a trailing delimiter to the reference
-	c.reference = addTrailingDelimiter(c.reference)
-
-	// Remove leading and trailing delimiters from the mboxPattern so that
-	// the session functions can assume a canonical form
-	c.mboxPattern = removeDelimiters(c.mboxPattern)
-
+	// Convert the reference and mbox pattern into slices
+	ref := pathToSlice(c.reference)
+	mbox := pathToSlice(c.mboxPattern)
+	
 	// Get the list of mailboxes
-	mboxes, err := sess.list(c.reference, c.mboxPattern)
+	mboxes, err := sess.list(ref, mbox)
 
 	if err != nil {
 		return internalError(sess, c.tag, "LIST", err)
@@ -174,8 +170,10 @@ func (c *list) execute(sess *session) *response {
 	// Respond with the mailboxes
 	res := ok(c.tag, "LIST completed")
 	for _, mbox := range mboxes {
-		res.extra(fmt.Sprintf(`LIST (%s) "%s" %s`,
-			joinMailboxFlags(mbox), pathDelimiter, mbox.Path))
+		res.extra(fmt.Sprintf(`LIST (%s) "%s" /%s`,
+			joinMailboxFlags(mbox), 
+			string(pathDelimiter), 
+			strings.Join(mbox.Path, string(pathDelimiter))))
 	}
 
 	return res
@@ -212,36 +210,36 @@ func mustAuthenticate(sess *session, tag string, commandName string) *response {
 	return bad(tag, message)
 }
 
-// Add a trailing delimiter
-func addTrailingDelimiter(s string) string {
-	if s[len(s)-1] != pathDelimiter {
-		return s + string(pathDelimiter)
+// Convert a path to a slice of strings
+func pathToSlice(path string) []string {
+
+	// Split the path
+	ret := strings.Split(path, string(pathDelimiter))
+
+	if len(ret) == 0 {
+		return ret
 	}
 
-	return s
-}
-
-// Remove path delimiters from the start and end of a string
-func removeDelimiters(s string) string {
-
-	// Calculate start and end indices
-	start := 0
-	end := len(s)
-
-	if s[0] == pathDelimiter {
-		start = 1
+	// Remove leading and trailing blanks
+	if ret[0] == "" {
+		if len(ret) > 1 {
+			ret = ret[1:len(ret)]
+		} else {
+			return []string{}
+		}
 	}
 
-	if s[end-1] == pathDelimiter {
-		end -= 1
+	lastIndex := len(ret) - 1
+	if ret[lastIndex] == "" {
+		if len(ret) > 1 {
+			ret = ret[0:lastIndex]
+		} else {
+			return []string{}
+		}
 	}
 
-	// Return the new pattern
-	if end-start > 0 {
-		return s[start:end]
-	}
-
-	return ""
+	return ret
+		
 }
 
 // Return a string of mailbox flags for the given mailbox

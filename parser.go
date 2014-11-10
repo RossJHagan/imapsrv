@@ -98,7 +98,11 @@ func (p *parser) selectC(tag string) command {
 func (p *parser) list(tag string) command {
 	// Get the command arguments
 	reference := p.match(stringTokenType).value
+	if strings.EqualFold(reference, "inbox") {
+		reference = "INBOX"
+	}
 	mailbox := p.match(stringTokenType).value
+
 	p.match(eolTokenType)
 
 	return &list{tag: tag, reference: reference, mboxPattern: mailbox}

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"regexp"
-	"strings"
 )
 
 // IMAP session states
@@ -64,13 +63,20 @@ func (s *session) selectMailbox(name string) (bool, error) {
 }
 
 // List mailboxes matching the given mailbox pattern
-func (s *session) list(reference string, mboxPattern string) ([]*Mailbox, error) {
+func (s *session) list(reference []string, mbox []string) ([]*Mailbox, error) {
 
-	recursive := false
+	if len(mbox) == 0  {
+		// Lookup mailboxes at the reference point
+		return s.listMailboxes(reference, nil, false)
+	} 
 
 	// Will this be a recursive listing?
-	lastIndex := len(mboxPattern) - 1
-	if mboxPattern[lastIndex] == '*' {
+	recursive := false
+	mboxLastIndex := len(mbox) - 1
+	mboxPattern := mbox[mboxLastIndex]
+
+	patLastIndex := len(mboxPattern) - 1
+	if mboxPattern[patLastIndex] == '*' {
 		recursive = true
 	}
 
@@ -80,24 +86,19 @@ func (s *session) list(reference string, mboxPattern string) ([]*Mailbox, error)
 	path := reference
 
 	// Does the mailbox end in a wildcard?
-	if mboxPattern[lastIndex] == '*' || mboxPattern[lastIndex] == '%' {
+	if mboxPattern[patLastIndex] == '*' || mboxPattern[patLastIndex] == '%' {
 
 		// Build the mailbox path
-		lastDelimiter := strings.LastIndex(mboxPattern, string(pathDelimiter))
-		mboxPathPart := ""
-		if lastDelimiter > 0 {
-			mboxPathPart = mboxPattern[0:lastDelimiter]
+		if mboxLastIndex > 0 {
+			path = append(path, mbox[0:mboxLastIndex]...)
 		}
-		path += mboxPathPart
 
 		// Convert the wildcard into a regular expression
 		var expr string
 		if len(mboxPattern) == 1 {
 			expr = ".*"
-		} else if lastDelimiter > 0 {
-			expr = mboxPattern[lastDelimiter:(lastIndex-1)] + ".*"
 		} else {
-			expr = mboxPattern[0:(lastIndex-1)] + ".*"
+			expr = mboxPattern[0:(patLastIndex-1)] + ".*"
 		}
 
 		var err error
@@ -109,7 +110,7 @@ func (s *session) list(reference string, mboxPattern string) ([]*Mailbox, error)
 
 	} else {
 		// Build the mailbox path
-		path += mboxPattern
+		path = append(path, mboxPattern)
 	}
 
 	// Lookup mailboxes at the given path
@@ -147,8 +148,11 @@ func (s *session) addMailboxInfo(resp *response) error {
 	return nil
 }
 
-// Recursive list mailboxes function. The path should not end in a slash.
-func (s *session) listMailboxes(path string, mboxRe *regexp.Regexp, recursive bool) ([]*Mailbox, error) {
+// Recursive list mailboxes function.
+func (s *session) listMailboxes(
+	path []string,
+	mboxRe *regexp.Regexp,
+	recursive bool) ([]*Mailbox, error) {
 
 	log.Print("listMailboxes ", path)
 
@@ -176,12 +180,7 @@ func (s *session) listMailboxes(path string, mboxRe *regexp.Regexp, recursive bo
 		// Is this a recursive listing?
 		if recursive {
 			// Build the path to the child mailbox
-			var nextPath string
-			if path[len(path)-1] == pathDelimiter {
-				nextPath = path + mbox.Name
-			} else {
-				nextPath = path + "/" + mbox.Name
-			}
+			nextPath := append(path, mbox.Name)
 
 			// List the mailboxes in the child mailbox
 			next, err := s.listMailboxes(nextPath, nil, true)

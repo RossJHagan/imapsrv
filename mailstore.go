@@ -6,10 +6,10 @@ import (
 
 // An IMAP mailbox
 type Mailbox struct {
-	Name  string // The name of the mailbox
-	Path  string // Full mailbox path
-	Id    int64  // The id of the mailbox
-	Flags uint8  // Mailbox flags
+	Name  string   // The name of the mailbox
+	Path  []string // Full mailbox path
+	Id    int64    // The id of the mailbox
+	Flags uint8    // Mailbox flags
 }
 
 // Mailbox flags
@@ -20,11 +20,11 @@ const (
 	Unmarked
 )
 
-var mailboxFlags = map[uint8]string {
+var mailboxFlags = map[uint8]string{
 	Noinferiors: "Noinferiors",
-	Noselect: "Noselect",
-	Marked: "Marked",
-	Unmarked: "Unmarked",
+	Noselect:    "Noselect",
+	Marked:      "Marked",
+	Unmarked:    "Unmarked",
 }
 
 // A service that is needed to read mail messages
@@ -33,7 +33,7 @@ type Mailstore interface {
 	// Returns nil if the mailbox does not exist
 	GetMailbox(name string) (*Mailbox, error)
 	// Get a list of mailboxes at the given path
-	GetMailboxes(path string) ([]*Mailbox, error)
+	GetMailboxes(path []string) ([]*Mailbox, error)
 	// Get the sequence number of the first unseen message
 	FirstUnseen(mbox int64) (int64, error)
 	// Get the total number of messages in an IMAP mailbox
@@ -57,31 +57,31 @@ func (m *DummyMailstore) GetMailbox(name string) (*Mailbox, error) {
 }
 
 // Get a list of mailboxes at the given path
-func (m *DummyMailstore) GetMailboxes(path string) ([]*Mailbox, error) {
-	log.Print("GetMailboxes ", path)
+func (m *DummyMailstore) GetMailboxes(path []string) ([]*Mailbox, error) {
+	log.Printf("GetMailboxes %v", path)
 
-	if path == "/" {
-		log.Print("Returning big list")
+	if len(path) == 0 {
+		// Root
 		return []*Mailbox{
 			&Mailbox{
 				Name: "inbox",
-				Path: "/inbox",
-				Id: 1,
+				Path: []string{"inbox"},
+				Id:   1,
 			},
 			&Mailbox{
 				Name: "spam",
-				Path: "/spam",
-				Id: 2,
+				Path: []string{"spam"},
+				Id:   2,
 			},
 		}, nil
-	} else if path == "/inbox" {
+	} else if len(path) == 1 && path[0] == "inbox" {
 		return []*Mailbox{
 			&Mailbox{
 				Name: "starred",
-				Path: "/inbox/starred",
-				Id: 3,
+				Path: []string{"inbox","stared"},
+				Id:   3,
 			},
-		},nil
+		}, nil
 	} else {
 		return []*Mailbox{}, nil
 	}
